@@ -8,6 +8,13 @@
  * MG92B Servo 
  * https://www.adafruit.com/product/2307
  * 
+ *
+ * Dualshock 4
+ * - Left Stick : drive roomba
+ - - [opt] pair roomba
+ * - (X) toggle vacuum on/off
+ * - (O) honk
+ * - () LED on/off
  */
 
 #include <ESP32Servo.h>
@@ -86,8 +93,8 @@ void loop() {
     if (btn_state_options[0] > btn_state_options[1]) {
       wakeRoomba();
     }
-    if (PS4.LStickY()) {
-      int azimut = -PS4.LStickY();  // max range: -127 ... +127
+    if (PS4.R2Value()) {
+      int azimut = -PS4.R2Value();  // max range: -127 ... +127
       azimut * 2/3; // range -63 ... + 63
       if(azimut > 3 || azimut < 3){
         if(azimut > 70){
@@ -100,46 +107,46 @@ void loop() {
       }
     }
     
-    double stick_steer = (double) PS4.RStickX();
+    // range -127 ... +127
+    double stick_steer = (double) PS4.LStickX();
     if(stick_steer < 10.0 && stick_steer > 10.0){
       stick_steer = 0.0;
     }
-    double stick_drive = (double) PS4.RStickY();
+    double stick_drive = (double) PS4.LStickY();
     if(stick_drive < 10.0 && stick_drive > 10.0){
       stick_drive = 0.0;
     }
 
-    double velocity = sqrt( pow(stick_drive,2.0) + pow(stick_steer,2.0) );
-    double angle = atan2(stick_drive, stick_steer);
     double wheel_r, wheel_l;
 
-    // 1. Quadrant
-    if(angle >= 0.0 && angle < M_PI_2){
-      wheel_l = velocity;
-      wheel_r = velocity * sin(angle);
-    } else if(angle >= M_PI_2){
-      wheel_r = velocity;
-      wheel_l = velocity * sin(angle);
-    } else if(angle < 0.0 && angle >= (- (M_PI_2))){
-      wheel_l = -velocity;
-      wheel_r = velocity * sin(angle);
-    } else if(angle <= (-(M_PI_2))){
-      wheel_r = -velocity;
-      wheel_l = velocity * sin(angle);
-    }
+    wheel_r = stick_drive - stick_steer;
+    wheel_l = stick_drive + stick_steer;
 
-    wheel_r *= 2;
-    wheel_l *= 2;
-    if(wheel_r < 20 && wheel_r > -20){
+    // max speed is 500 mm/s | max sensor value is 127 --> 500/127 ~ 3.9
+    wheel_r *= 3.9; 
+    wheel_l *= 3.9;
+
+    if(wheel_r < 50 && wheel_r > -50){
       wheel_r = 0;
     }
-    if(wheel_l < 20 && wheel_l > -20){
+    if(wheel_l < 50 && wheel_l > -50){
       wheel_l = 0;
+    }
+    if(wheel_r > 500){
+      wheel_r = 500;
+    }
+    if(wheel_r < -500){
+      wheel_r = -500;
+    }
+    if(wheel_l > 500){
+      wheel_l = 500;
+    } 
+    if(wheel_l < -500){
+      wheel_l = -500;
     }
     if(roombaWakeState){    
       roomba.driveDirect(wheel_l, wheel_r);
     }
-
 
   #ifdef SERIAL_COM_MODE_DEBUG
     Serial.printf("| %.2f | < %.2f deg  %.2f %.2f\n", velocity, angle, wheel_l, wheel_r);
